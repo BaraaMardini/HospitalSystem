@@ -1,0 +1,13 @@
+# Backend (.NET)
+bin/
+obj/
+.vs/
+
+# Frontend
+node_modules/
+dist/
+build/
+
+# General
+.env
+*.log
