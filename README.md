@@ -40,6 +40,31 @@ Controller → Service → Data Access → SQL Server (Stored Procedures)
 * **Database**: Contains all business rules and constraints
 
 ---
+## 🗄️ Database Setup
+
+The project contains a **DataBase** folder with SQL scripts to create the schema.  
+
+1. Navigate to: `DataBase/SQLScript/HospitalSchema.sql`  
+2. Manually create a new database in SQL Server called **Hospital**  
+3. Run the script `HospitalSchema.sql` to create all tables, relations, and stored procedures.  
+
+> ⚠️ Note: The backend will not work unless the database is created and the script is executed.
+
+---
+
+### 🔹 Connection String Configuration
+
+Before running the project, make sure to update your connection string in `appsettings.json` according to your SQL Server setup:
+
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Server=localhost;Database=Hospital;Trusted_Connection=True;Encrypt=False"
+}
+
+```
+
+
+
 
 ## 🗄️ Database Design
 
@@ -140,7 +165,7 @@ All endpoints return a unified response:
 
 ---
 
-## 👨‍💻 Author
+## 👨‍💻 Baraa Mardini
 
 Backend Developer passionate about building scalable and clean systems.
 
