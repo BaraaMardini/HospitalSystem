@@ -1,179 +1,64 @@
-# 🏥 Hospital Management System - Backend
+# Hospital Management System API
 
-## 📌 Overview
+## Overview
+An ASP.NET Core Web API backend for managing hospital operations — patients, doctors, appointments, rooms, and billing — built on a SQL Server database with over 100 stored procedures. The API is front-end agnostic and designed to serve any client application.
 
-This project is a **robust backend system** for managing hospital operations, built using **ASP.NET Core Web API** and **SQL Server**.
-It follows a clean, scalable architecture and handles complex business logic such as appointments, room bookings, and validations.
+## Main Features
+- Full CRUD endpoints for core hospital entities (appointments, rooms, patients, doctors, invoices).
+- Appointment scheduling with doctor availability checks, room availability checks, and time-conflict validation.
+- Transactional appointment booking that atomically creates an appointment and its associated room booking.
+- Standardized API responses with consistent success/error payloads across all endpoints.
+- Foreign key and business-rule validation enforced at the stored procedure level (e.g., invalid patient, invalid doctor schedule, overlapping bookings).
 
----
-
-## 🚀 Features
-
-* Full CRUD operations using **108+ Stored Procedures**
-* Advanced validation at database level
-* Transaction handling for critical operations
-* Clean layered architecture:
-
-  * Controllers
-  * Services
-  * Data Access Layer
-* Unified API response structure
-* DTO pattern implementation:
-
-  * AddDTO
-  * UpdateDTO
-  * ViewDTO
-* Error handling with mapped error types
-* High-performance data access using **ADO.NET**
-
----
-
-## 🧱 Architecture
+## Architecture / System Design
+The project follows a layered backend architecture:
 
 ```
-Controller → Service → Data Access → SQL Server (Stored Procedures)
+Controllers → Services → Data Access Layer → SQL Server (Stored Procedures)
+Models: DTO / UpdateDTO / ViewDTO
 ```
 
-* **Controller**: Handles HTTP requests & responses
-* **Service Layer**: Business logic & validation
-* **Data Layer**: Executes Stored Procedures using ADO.NET
-* **Database**: Contains all business rules and constraints
+- **Controllers** expose REST endpoints and delegate all logic to the Service layer.
+- **Services** apply business rules (e.g., "no results found" handling) before/after calling the Data Access Layer.
+- **Data Access Layer** communicates with SQL Server via ADO.NET, using stored procedures exclusively — no inline dynamic SQL in application code.
+- **Models** are split into `DTO` (input for create), `UpdateDTO` (partial/nullable fields for update), and `ViewDTO` (read-optimized, joined data for display).
 
----
-## 🗄️ Database Setup
+A shared `ApiResult<T>` / `ErrorType` / `ApiResponseHelper` pattern maps database-level error codes to appropriate HTTP status codes (200, 201, 400, 404, 409, 500) consistently across the entire API.
 
-The project contains a **DataBase** folder with SQL scripts to create the schema.  
+## Technologies Used
+- ASP.NET Core Web API
+- C#
+- SQL Server / T-SQL
+- ADO.NET (`SqlConnection`, `SqlCommand`, output parameters)
+- Stored Procedures with explicit transaction handling
 
-1. Navigate to: `DataBase/SQLScript/HospitalSchema.sql`  
-2. Manually create a new database in SQL Server called **Hospital**  
-3. Run the script `HospitalSchema.sql` to create all tables, relations, and stored procedures.  
+## Database Design Explanation
+The schema models real hospital relationships: `Appointment` links `Patient`, `Doctor`, `Room`, and `Status`; `RoomBookings` tracks time-based room reservations tied to an `Appointment`; `Invoices` and `InvoicePayments` handle billing tied to appointments and patients; `MedicalHistory` links back to `Patient` and the creating `User`. Foreign keys enforce referential integrity across roughly 20+ relationships (e.g., `Appointment.PatientID → Patient.ID`, `Appointment.RoomID → Room.ID`, `Invoices.AppointmentID → Appointment.ID`).
 
-> ⚠️ Note: The backend will not work unless the database is created and the script is executed.
+## Key Technical Implementations
+- `SP_AddAppointment`: a transactional stored procedure that validates patient existence, doctor working days, room existence, requesting user, and time overlap (both doctor and room) before inserting into `Appointment` and `RoomBookings` inside a single SQL transaction with rollback on failure.
+- Output parameters (`@Message`, `@ErrorType`, `@NewID`) used consistently across stored procedures to communicate result status back to the Data Access Layer without relying on exceptions for expected business failures.
+- `ErrorTypeMapper` translates numeric database error codes into a strongly typed `ErrorType` enum consumed by the API layer.
+- `ViewDTO` classes built from multi-table JOIN stored procedures (e.g., `SP_GetAllAppointment` joins `Doctor`, `Patient`, `People`, `Room`, `Status`, and `Users`) to avoid N+1 query patterns on read endpoints.
 
----
+## Challenges Solved
+- Preventing double-booking of a doctor or a room by validating time overlaps against existing `RoomBookings` before insert, inside a transaction to avoid race conditions.
+- Keeping partial updates safe by using nullable fields in `UpdateDTO` combined with `COALESCE` in the `UPDATE` statements, so only supplied fields are changed.
+- Returning meaningful, structured error information (not just generic 500s) for business rule violations like "doctor does not work this day" or "room already booked."
 
-### 🔹 Connection String Configuration
+## What I Learned
+- How to design and use SQL Server transactions correctly with `BEGIN TRY / BEGIN TRANSACTION / COMMIT / ROLLBACK` and `TRY/CATCH`.
+- How to structure a layered .NET API so business logic, data access, and HTTP concerns stay separated.
+- Practical experience mapping database error states to HTTP status codes through a centralized response helper.
+- How to design DTOs specifically for their use case (create vs. update vs. read) rather than reusing one model everywhere.
 
-Before running the project, make sure to update your connection string in `appsettings.json` according to your SQL Server setup:
+## Future Improvements
+- Add authentication and role-based authorization (doctor, receptionist, admin roles).
+- Add pagination and filtering to list endpoints.
+- Add automated integration tests around the stored procedure validation logic.
 
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=localhost;Database=Hospital;Trusted_Connection=True;Encrypt=False"
-}
-
-```
-
-
-
-
-## 🗄️ Database Design
-
-* Built using **SQL Server**
-* Uses **Foreign Keys** to maintain relational integrity
-* Includes entities such as:
-
-  * Patients
-  * Doctors
-  * Appointments
-  * Rooms
-  * Invoices
-  * Users
-
-### 🔹 Key Features:
-
-* Strong relational structure
-* Business rules enforced inside Stored Procedures
-* Conflict handling (Doctor schedule, Room booking)
-
----
-
-## ⚙️ Example: Appointment Creation Logic
-
-When creating an appointment:
-
-* ✅ Validate Patient exists
-* ✅ Validate Doctor schedule
-* ✅ Validate Room availability
-* ✅ Check time conflicts
-* ✅ Ensure StartDate < EndDate
-* ✅ Insert Appointment + RoomBooking inside a **Transaction**
-
----
-
-## 🔁 API Response Structure
-
-All endpoints return a unified response:
-
-```json
-{
-  "data": {},
-  "message": "Operation status message",
-  "errorCode": 0
-}
-```
-
-### Error Types:
-
-| Code | Meaning            |
-| ---- | ------------------ |
-| 0    | Success            |
-| 1    | Invalid ID         |
-| 2    | Not Found          |
-| 3    | Already Exists     |
-| 4    | Logical Dependency |
-| 5    | Database Error     |
-
----
-
-## 📡 API Endpoints (Example)
-
-### Appointment
-
-* `GET /api/appointments/all`
-* `GET /api/appointments/{id}`
-* `POST /api/appointments`
-* `PUT /api/appointments/{id}`
-* `DELETE /api/appointments/{id}`
-
----
-
-## 🧪 Technologies Used
-
-* ASP.NET Core Web API
-* ADO.NET
-* SQL Server
-* Stored Procedures
-* C#
-
----
-
-## 💡 Highlights
-
-* Strong focus on **data integrity**
-* Clean and maintainable architecture
-* Scalable backend ready for any frontend integration
-* Enterprise-level error handling approach
-
----
-
-## 🔮 Future Improvements
-
-* Add frontend (Angular / React)
-* Implement authentication & authorization (JWT)
-* Add caching for performance optimization
-* Logging & monitoring
-
----
-
-## 👨‍💻 Baraa Mardini
-
-Backend Developer passionate about building scalable and clean systems.
-
----
-
-## ⭐ Project Status
-
-✔ Backend Completed
-⏳ Frontend Coming Soon
-
----
+## How to Run
+1. Restore the SQL Server database using the provided schema and stored procedures.
+2. Update the connection string in `appsettings.json` (or `ConnectionString.cs`).
+3. Build and run the ASP.NET Core project.
+4. Use the exposed REST endpoints (e.g., `/api/appointments`) via Postman, Swagger, or any front-end client.
